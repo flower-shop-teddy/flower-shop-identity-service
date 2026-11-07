@@ -1,0 +1,25 @@
+# CHỈ dùng trên máy dev. Chạy với profile: local
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5433/identity_db
+    username: identity_user
+    password: identity_pass_local
+
+identity:
+  jwt:
+    # Không có JWT_PRIVATE_KEY thì tự sinh khóa RSA mới mỗi lần khởi động.
+    # Hệ quả: restart identity-service là mọi token cũ thành không hợp lệ -> đăng nhập lại.
+    generate-dev-key: true
+  bootstrap-admin:
+    username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:FlowerShop2026}   # lần đăng nhập đầu sẽ bị buộc đổi
+
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
+logging:
+  level:
+    com.flowershop: DEBUG

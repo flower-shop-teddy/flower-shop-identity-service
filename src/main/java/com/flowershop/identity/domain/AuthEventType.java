@@ -1,0 +1,18 @@
+package com.flowershop.identity.domain;
+
+public enum AuthEventType {
+    LOGIN_SUCCESS,
+    LOGIN_FAILED,
+    ACCOUNT_LOCKED,
+    LOGOUT,
+    TOKEN_REFRESHED,
+    TOKEN_REUSE_DETECTED,
+    PASSWORD_CHANGED,
+    PASSWORD_RESET,
+    USER_REGISTERED,
+    USER_CREATED,
+    USER_DISABLED,
+    USER_ENABLED,
+    USER_UNLOCKED,
+    ROLE_CHANGED
+}
