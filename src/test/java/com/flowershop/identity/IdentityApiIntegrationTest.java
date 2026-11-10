@@ -51,7 +51,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "identity.bootstrap-admin.password=FlowerShop2026",
         "identity.service-clients[0].client-id=order-service",
         "identity.service-clients[0].secret=" + IdentityApiIntegrationTest.ORDER_SECRET,
-        "identity.service-clients[0].permissions=customer:read,flower:write",
+        "identity.service-clients[0].permissions=customer:read,inventory:reserve",
         "identity.service-clients[1].client-id=retired-service",
         "identity.service-clients[1].secret=" + IdentityApiIntegrationTest.RETIRED_SECRET,
         "identity.service-clients[1].permissions=customer:read"
@@ -112,7 +112,8 @@ class IdentityApiIntegrationTest {
         assertThat(jwt.getHeaders()).containsEntry("kid", key.getKeyID());
         assertThat(jwt.getClaimAsString("user_type")).isEqualTo("STAFF");
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("ADMIN");
-        assertThat(jwt.getClaimAsStringList("perms")).contains("user:write", "flower:write");
+        assertThat(jwt.getClaimAsStringList("perms")).contains("user:write", "flower:write", "inventory:write")
+                .doesNotContain("inventory:reserve");   // chỉ service client mới giữ hàng được
         assertThat(UUID.fromString(jwt.getSubject())).isNotNull();
     }
 
@@ -367,7 +368,7 @@ class IdentityApiIntegrationTest {
                 .decode(JsonPath.read(body, "$.data.accessToken"));
         assertThat(jwt.getSubject()).isEqualTo("order-service");
         assertThat(jwt.getClaimAsString("user_type")).isEqualTo("SERVICE");
-        assertThat(jwt.getClaimAsStringList("perms")).containsExactly("customer:read", "flower:write");
+        assertThat(jwt.getClaimAsStringList("perms")).containsExactly("customer:read", "inventory:reserve");
         assertThat(jwt.getClaimAsStringList("roles")).isEmpty();
         assertThat(serviceEvents(AuthEventType.SERVICE_TOKEN_ISSUED, "client=order-service")).isPositive();
     }
