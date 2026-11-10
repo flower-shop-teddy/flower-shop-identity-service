@@ -88,6 +88,9 @@ POST /internal/v1/service-token  {"clientId":"order-service","clientSecret":"...
 - Phía service gọi dùng `ServiceTokenClient` của common-lib: tự cache, xin lại trước khi hết hạn 1 phút, nhiều thread chỉ xin một lần.
 - identity-service vẫn tự ký token cho chính nó (`ServiceTokenProvider`) vì nó là bên phát hành token.
 
+Client đang dùng: `order-service` (`customer:read`, `inventory:reserve`). Profile `local` tạo sẵn với secret local
+(khớp `application-local.yml` của order-service); `docker-compose.app.yml` truyền qua biến `IDENTITY_SERVICECLIENTS_0_*`.
+
 Tạo client bằng cấu hình (lúc khởi động; đã có thì bỏ qua, cấu hình sai thì không khởi động):
 
 ```yaml

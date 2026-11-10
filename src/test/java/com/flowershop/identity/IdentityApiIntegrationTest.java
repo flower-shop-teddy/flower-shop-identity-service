@@ -113,6 +113,7 @@ class IdentityApiIntegrationTest {
         assertThat(jwt.getClaimAsString("user_type")).isEqualTo("STAFF");
         assertThat(jwt.getClaimAsStringList("roles")).containsExactly("ADMIN");
         assertThat(jwt.getClaimAsStringList("perms")).contains("user:write", "flower:write", "inventory:write")
+                .contains("order:read", "order:manage")
                 .doesNotContain("inventory:reserve");   // chỉ service client mới giữ hàng được
         assertThat(UUID.fromString(jwt.getSubject())).isNotNull();
     }
