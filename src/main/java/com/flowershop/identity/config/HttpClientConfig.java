@@ -1,5 +1,7 @@
 package com.flowershop.identity.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.flowershop.common.client.ServiceClientFactory;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -13,5 +15,11 @@ public class HttpClientConfig {
     @LoadBalanced
     public RestClient.Builder loadBalancedRestClientBuilder() {
         return RestClient.builder();
+    }
+
+    @Bean
+    public ServiceClientFactory serviceClientFactory(RestClient.Builder loadBalancedRestClientBuilder,
+                                                     ObjectMapper objectMapper) {
+        return new ServiceClientFactory(loadBalancedRestClientBuilder, objectMapper);
     }
 }
