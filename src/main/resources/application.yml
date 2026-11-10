@@ -51,6 +51,11 @@ identity:
   bootstrap-admin:                        # tạo ADMIN đầu tiên nếu hệ thống chưa có ADMIN nào
     username: ${BOOTSTRAP_ADMIN_USERNAME:}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+  # Service client (client_credentials) tạo lúc khởi động, đã có thì bỏ qua. Secret lấy từ biến môi trường:
+  # service-clients:
+  #   - client-id: order-service
+  #     secret: ${ORDER_SERVICE_CLIENT_SECRET}      # >= 32 ký tự, tạo: openssl rand -base64 36
+  #     permissions: [customer:read]
   customer-service:
     base-url: http://customer-service     # tên trên Eureka, @LoadBalanced RestClient tự tra địa chỉ
     connect-timeout: 2s
