@@ -28,6 +28,10 @@ public class CustomerClient {
     record CreateCustomerBody(String fullName, String phone, String email, LocalDate dateOfBirth) {
     }
 
+    /**
+     * KHÔNG đánh dấu @Idempotent: tạo hồ sơ không idempotent, timeout rồi gọi lại có thể tạo hai hồ sơ.
+     * Lỗi thì saga đăng ký bù trừ (xóa tài khoản PENDING), khách đăng ký lại.
+     */
     interface CustomerApi {
         @PostExchange("/api/v1/customers")
         ApiResponse<CustomerProfile> create(@RequestBody CreateCustomerBody body);

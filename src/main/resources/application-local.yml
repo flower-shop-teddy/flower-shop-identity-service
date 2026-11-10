@@ -10,6 +10,12 @@ identity:
     # Không có JWT_PRIVATE_KEY thì tự sinh khóa RSA mới mỗi lần khởi động.
     # Hệ quả: restart identity-service là mọi token cũ thành không hợp lệ -> đăng nhập lại.
     generate-dev-key: true
+  # order-service gọi customer (đọc sổ địa chỉ) và inventory (giữ hàng) bằng token của chính nó.
+  # Secret phải khớp order.service-client.secret trong application-local.yml của order-service.
+  service-clients:
+    - client-id: order-service
+      secret: ${ORDER_SERVICE_CLIENT_SECRET:order-service-local-secret-0123456789}
+      permissions: [customer:read, inventory:reserve]
   bootstrap-admin:
     username: ${BOOTSTRAP_ADMIN_USERNAME:admin}
     password: ${BOOTSTRAP_ADMIN_PASSWORD:FlowerShop2026}   # lần đăng nhập đầu sẽ bị buộc đổi
