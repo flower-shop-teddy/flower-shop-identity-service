@@ -5,6 +5,7 @@ import com.flowershop.identity.client.CustomerClient;
 import com.flowershop.identity.domain.AuthEventType;
 import com.flowershop.identity.error.IdentityErrorCode;
 import com.flowershop.identity.repository.AuthEventRepository;
+import com.flowershop.identity.repository.ServiceClientRepository;
 import com.flowershop.identity.repository.UserAccountRepository;
 import com.jayway.jsonpath.JsonPath;
 import com.nimbusds.jose.jwk.JWKSet;
@@ -47,7 +48,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         "identity.jwt.generate-dev-key=true",
         "identity.password.bcrypt-strength=4",       // test nhanh; production dùng 12
         "identity.bootstrap-admin.username=admin",
-        "identity.bootstrap-admin.password=FlowerShop2026"
+        "identity.bootstrap-admin.password=FlowerShop2026",
+        "identity.service-clients[0].client-id=order-service",
+        "identity.service-clients[0].secret=" + IdentityApiIntegrationTest.ORDER_SECRET,
+        "identity.service-clients[0].permissions=customer:read,flower:write",
+        "identity.service-clients[1].client-id=retired-service",
+        "identity.service-clients[1].secret=" + IdentityApiIntegrationTest.RETIRED_SECRET,
+        "identity.service-clients[1].permissions=customer:read"
 })
 @AutoConfigureMockMvc
 @Testcontainers
@@ -56,6 +63,9 @@ class IdentityApiIntegrationTest {
     @Container
     @ServiceConnection
     static PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine");
+
+    static final String ORDER_SECRET = "order-secret-for-test-only-0123456789";
+    static final String RETIRED_SECRET = "retired-secret-for-test-only-0123456789";
 
     private static final AtomicInteger SEQ = new AtomicInteger();
     private static final String ADMIN_NEW_PASSWORD = "QuanTri2026x";
@@ -69,6 +79,9 @@ class IdentityApiIntegrationTest {
 
     @Autowired
     UserAccountRepository users;
+
+    @Autowired
+    ServiceClientRepository serviceClients;
 
     @MockitoBean
     CustomerClient customerClient;
@@ -336,6 +349,66 @@ class IdentityApiIntegrationTest {
                 .andExpect(jsonPath("$.code").value("IDN-400-001"));
     }
 
+    // ---------------------------------------------------------------- Service token (client_credentials)
+
+    @Test
+    void serviceToken_validClient_getsTokenWithOnlyGrantedPermissions() throws Exception {
+        String body = serviceToken("order-service", ORDER_SECRET)
+                .andExpect(status().isOk())
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+                .andExpect(jsonPath("$.data.expiresIn").value(300))
+                .andExpect(jsonPath("$.data.refreshToken").doesNotExist())
+                .andReturn().getResponse().getContentAsString();
+
+        String jwks = mockMvc.perform(get("/.well-known/jwks.json")).andReturn().getResponse().getContentAsString();
+        RSAKey key = JWKSet.parse(jwks).getKeys().getFirst().toRSAKey();
+        Jwt jwt = NimbusJwtDecoder.withPublicKey(key.toRSAPublicKey()).build()
+                .decode(JsonPath.read(body, "$.data.accessToken"));
+        assertThat(jwt.getSubject()).isEqualTo("order-service");
+        assertThat(jwt.getClaimAsString("user_type")).isEqualTo("SERVICE");
+        assertThat(jwt.getClaimAsStringList("perms")).containsExactly("customer:read", "flower:write");
+        assertThat(jwt.getClaimAsStringList("roles")).isEmpty();
+        assertThat(serviceEvents(AuthEventType.SERVICE_TOKEN_ISSUED, "client=order-service")).isPositive();
+    }
+
+    @Test
+    void serviceToken_wrongSecret_unknownClient_disabledClient_returnSameError() throws Exception {
+        serviceClients.findByClientId("retired-service").ifPresent(c -> {
+            c.disable();
+            serviceClients.save(c);
+        });
+
+        for (String[] attempt : new String[][]{
+                {"order-service", "sai-secret-sai-secret-sai-secret-0000"},
+                {"khong-ton-tai", ORDER_SECRET},
+                {"retired-service", RETIRED_SECRET}}) {
+            serviceToken(attempt[0], attempt[1])
+                    .andExpect(status().isUnauthorized())
+                    .andExpect(jsonPath("$.code").value("IDN-401-003"))
+                    .andExpect(jsonPath("$.message").value("Thông tin xác thực service không đúng"));
+        }
+        // Nhật ký vẫn còn dù request trả lỗi (không bị rollback), và ghi rõ lý do để điều tra
+        assertThat(serviceEvents(AuthEventType.SERVICE_TOKEN_DENIED, "client=order-service BAD_SECRET")).isPositive();
+        assertThat(serviceEvents(AuthEventType.SERVICE_TOKEN_DENIED, "client=khong-ton-tai UNKNOWN_CLIENT")).isPositive();
+        assertThat(serviceEvents(AuthEventType.SERVICE_TOKEN_DENIED, "client=retired-service STATUS_DISABLED")).isPositive();
+    }
+
+    @Test
+    void serviceToken_invalidClientIdFormat_isRejectedBeforeLookup() throws Exception {
+        serviceToken("Order Service; DROP", ORDER_SECRET)
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("COM-400-001"));
+    }
+
+    @Test
+    void serviceToken_cannotBeUsedToCallUserApis_withoutPermission() throws Exception {
+        String token = JsonPath.read(serviceToken("order-service", ORDER_SECRET).andReturn().getResponse()
+                .getContentAsString(), "$.data.accessToken");
+        mockMvc.perform(get("/api/v1/users").header("Authorization", bearer(token)))
+                .andExpect(status().isForbidden());
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private record Staff(UUID publicId, String username, String password) {
@@ -355,6 +428,17 @@ class IdentityApiIntegrationTest {
         return mockMvc.perform(post("/api/v1/auth/change-password").header("Authorization", bearer(token))
                 .contentType(APPLICATION_JSON)
                 .content("{\"currentPassword\":\"%s\",\"newPassword\":\"%s\"}".formatted(current, next)));
+    }
+
+    private ResultActions serviceToken(String clientId, String secret) throws Exception {
+        return mockMvc.perform(post("/internal/v1/service-token").contentType(APPLICATION_JSON)
+                .content("{\"clientId\":\"%s\",\"clientSecret\":\"%s\"}".formatted(clientId, secret)));
+    }
+
+    private long serviceEvents(AuthEventType type, String detail) {
+        return authEvents.findAll().stream()
+                .filter(e -> e.getEventType() == type && detail.equals(e.getDetail()))
+                .count();
     }
 
     private ResultActions register(String phone, String password) throws Exception {

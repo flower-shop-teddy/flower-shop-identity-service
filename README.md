@@ -73,6 +73,31 @@ Tài khoản nằm ở `identity_db`, hồ sơ nằm ở `customer_db`, không t
 
 Giới hạn đã biết (học tiếp ở giai đoạn sau): bước 2 hết thời gian chờ nhưng thực ra đã tạo hồ sơ → hồ sơ mồ côi. Cách chữa: Idempotency-Key, outbox + Kafka. Chưa có OTP nên SĐT đã có hồ sơ (do nhân viên tạo) sẽ bị từ chối `IDN-409-003` thay vì tự gắn vào.
 
+## Service token (client_credentials)
+
+Service khác (vd order-service) muốn gọi API cần quyền thì xin token bằng client id + secret:
+
+```
+POST /internal/v1/service-token  {"clientId":"order-service","clientSecret":"..."}
+→ {"tokenType":"Bearer","accessToken":"...","expiresIn":300}     (không có refresh token)
+```
+
+- Token có `sub` = client id, `user_type=SERVICE`, `perms` = đúng các permission cấp cho client (bảng `service_client_permission`).
+- `/internal/**` **không đi qua gateway**: không có route, và gateway `denyAll()` kể cả khi có token. Chỉ gọi được trong mạng nội bộ.
+- Sai client id / sai secret / client bị vô hiệu hóa: cùng mã `IDN-401-003`; mọi lần xin (được hay bị từ chối) ghi vào `auth_event`.
+- Phía service gọi dùng `ServiceTokenClient` của common-lib: tự cache, xin lại trước khi hết hạn 1 phút, nhiều thread chỉ xin một lần.
+- identity-service vẫn tự ký token cho chính nó (`ServiceTokenProvider`) vì nó là bên phát hành token.
+
+Tạo client bằng cấu hình (lúc khởi động; đã có thì bỏ qua, cấu hình sai thì không khởi động):
+
+```yaml
+identity:
+  service-clients:
+    - client-id: order-service
+      secret: ${ORDER_SERVICE_CLIENT_SECRET}    # >= 32 ký tự, tạo: openssl rand -base64 36
+      permissions: [customer:read]
+```
+
 ## API
 
 | Method | Path | Quyền |
@@ -89,8 +114,9 @@ Giới hạn đã biết (học tiếp ở giai đoạn sau): bước 2 hết th
 | PUT | `/api/v1/users/{publicId}/roles` `{roles}` | `role:assign` |
 | GET | `/api/v1/roles` | `role:read` |
 | GET | `/.well-known/jwks.json` | public |
+| POST | `/internal/v1/service-token` `{clientId, clientSecret}` | client id + secret, chỉ mạng nội bộ |
 
-Mã lỗi: `IDN-400-001` mật khẩu yếu · `IDN-400-002` sai mật khẩu hiện tại · `IDN-400-003` role không hợp lệ · `IDN-401-001` sai thông tin đăng nhập · `IDN-401-002` refresh token không hợp lệ · `IDN-403-001` tài khoản bị vô hiệu hóa · `IDN-403-002` không tự sửa chính mình · `IDN-403-003` cần ADMIN · `IDN-404-001` không thấy tài khoản · `IDN-409-001` trùng username · `IDN-409-002` SĐT đã có tài khoản · `IDN-409-003` SĐT đã có hồ sơ · `IDN-409-004` trùng email · `IDN-422-001` chỉ gán role cho nhân viên · `IDN-423-001` tạm khóa · `IDN-503-001` customer-service không phản hồi.
+Mã lỗi: `IDN-400-001` mật khẩu yếu · `IDN-400-002` sai mật khẩu hiện tại · `IDN-400-003` role không hợp lệ · `IDN-401-001` sai thông tin đăng nhập · `IDN-401-002` refresh token không hợp lệ · `IDN-401-003` sai thông tin service client · `IDN-403-001` tài khoản bị vô hiệu hóa · `IDN-403-002` không tự sửa chính mình · `IDN-403-003` cần ADMIN · `IDN-404-001` không thấy tài khoản · `IDN-409-001` trùng username · `IDN-409-002` SĐT đã có tài khoản · `IDN-409-003` SĐT đã có hồ sơ · `IDN-409-004` trùng email · `IDN-422-001` chỉ gán role cho nhân viên · `IDN-423-001` tạm khóa · `IDN-503-001` customer-service không phản hồi.
 
 Lỗi chung từ common-lib: `COM-401-001` thiếu/sai token · `COM-403-001` thiếu quyền.
 

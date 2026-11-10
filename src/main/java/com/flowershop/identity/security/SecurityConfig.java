@@ -25,6 +25,8 @@ public class SecurityConfig {
                 .requestMatchers(HttpMethod.POST,
                         "/api/v1/auth/login", "/api/v1/auth/refresh",
                         "/api/v1/auth/logout", "/api/v1/auth/register").permitAll()
+                // Service tự xác thực bằng client id + secret trong body (gateway không route /internal/**)
+                .requestMatchers(HttpMethod.POST, "/internal/v1/service-token").permitAll()
                 .requestMatchers(HttpMethod.GET, "/.well-known/jwks.json").permitAll()
                 .requestMatchers("/actuator/health/**", "/actuator/info").permitAll()
                 // Swagger chỉ bật ở profile local (springdoc.*.enabled), tắt thì các path này trả 404

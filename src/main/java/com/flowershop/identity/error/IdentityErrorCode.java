@@ -11,6 +11,8 @@ public enum IdentityErrorCode implements ErrorCode {
     INVALID_CREDENTIALS("IDN-401-001", HttpStatus.UNAUTHORIZED, "Thông tin đăng nhập không đúng"),
     INVALID_REFRESH_TOKEN("IDN-401-002", HttpStatus.UNAUTHORIZED,
             "Phiên đăng nhập không hợp lệ hoặc đã hết hạn, vui lòng đăng nhập lại"),
+    // Sai client id, sai secret hay client bị vô hiệu hóa đều cùng một mã (như INVALID_CREDENTIALS)
+    INVALID_CLIENT_CREDENTIALS("IDN-401-003", HttpStatus.UNAUTHORIZED, "Thông tin xác thực service không đúng"),
     ACCOUNT_DISABLED("IDN-403-001", HttpStatus.FORBIDDEN, "Tài khoản đã bị vô hiệu hóa"),
     CANNOT_MODIFY_SELF("IDN-403-002", HttpStatus.FORBIDDEN, "Không được tự thay đổi quyền hoặc trạng thái của chính mình"),
     ADMIN_REQUIRED("IDN-403-003", HttpStatus.FORBIDDEN, "Chỉ ADMIN mới được thao tác trên tài khoản hoặc role ADMIN"),
